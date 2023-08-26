@@ -1,6 +1,7 @@
 package com.bondarenko.template;
 
 import com.bondarenko.PrepareStatementExecutor;
+import com.bondarenko.mapper.ResultSetMapper;
 import com.bondarenko.mapper.RowMapper;
 
 import javax.sql.DataSource;
@@ -8,9 +9,11 @@ import javax.sql.DataSource;
 public class JdbcTemplate implements JdbcOperations {
     private DataSource dataSource;
     private PrepareStatementExecutor executor;
-    private RowMapper mapper;
+    private ResultSetMapper resultSetMapper;
 
     public JdbcTemplate(DataSource dataSource) {
+        this.dataSource = dataSource;
+        this.resultSetMapper = new ResultSetMapper<>();
     }
 
     @Override

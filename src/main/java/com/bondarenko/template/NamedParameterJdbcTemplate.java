@@ -12,6 +12,7 @@ public class NamedParameterJdbcTemplate implements JdbcOperations {
 
     public NamedParameterJdbcTemplate(DataSource dataSource) {
         this.dataSource = dataSource;
+        this.executor = new PrepareStatementExecutor();
     }
 
     @Override

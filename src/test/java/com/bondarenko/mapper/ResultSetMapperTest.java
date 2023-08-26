@@ -1,5 +1,6 @@
 package com.bondarenko.mapper;
 
+import com.bondarenko.TestEntity;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -48,7 +49,7 @@ class ResultSetMapperTest {
     void shouldReturnNullWhenResultSetIsEmpty() throws SQLException {
         when(rowMapper.map(resultSet)).thenReturn(null);
 
-        Object result = resultSetMapper.mapResultSetToEntity(resultSet, rowMapper);
+        TestEntity result = (TestEntity) resultSetMapper.mapResultSetToEntity(resultSet, rowMapper);
 
         assertNull(result);
     }
@@ -60,27 +61,6 @@ class ResultSetMapperTest {
         assertThrows(SQLException.class, () -> {
             resultSetMapper.mapResultSetToEntity(resultSet, rowMapper);
         });
-    }
-
-    public static class TestEntity {
-        private int id;
-        private String name;
-
-        public int getId() {
-            return id;
-        }
-
-        public void setId(int id) {
-            this.id = id;
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        public void setName(String name) {
-            this.name = name;
-        }
     }
 
 }

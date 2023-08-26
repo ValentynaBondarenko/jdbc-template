@@ -1,6 +1,7 @@
 package com.bondarenko.template;
 
 import com.bondarenko.PrepareStatementExecutor;
+import com.bondarenko.TestEntity;
 import com.bondarenko.mapper.ResultSetMapper;
 import com.bondarenko.mapper.RowMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,7 +53,7 @@ class NamedParameterJdbcTemplateTest {
         when(executor.execute(preparedStatement)).thenReturn(resultSet);
         when(rowMapper.mapResultSetToEntity(resultSet, mapper)).thenReturn(expectedObject);
 
-        Object result = jdbcTemplate.query(sql, mapper);
+        TestEntity result = (TestEntity) jdbcTemplate.query(sql, mapper);
 
         verify(executor, times(1)).execute(preparedStatement);
         verify(rowMapper, times(1)).mapResultSetToEntity(resultSet, mapper);
@@ -108,7 +109,7 @@ class NamedParameterJdbcTemplateTest {
         when(executor.execute(preparedStatement)).thenReturn(resultSet);
         when(rowMapper.mapResultSetToEntity(resultSet, mapper)).thenReturn(expectedObject);
 
-        Object result = jdbcTemplate.queryForObject(sql, mapper, 1);
+        TestEntity result = (TestEntity) jdbcTemplate.queryForObject(sql, mapper, 1);
 
         verify(executor, times(1)).execute(preparedStatement);
         verify(preparedStatement, times(1)).setObject(1, 1);
@@ -194,5 +195,46 @@ class NamedParameterJdbcTemplateTest {
             jdbcTemplate.update("UPDATE table SET name = ? WHERE id = ?", "NewName", 1);
         });
     }
+
+    @Test
+    void shouldQueryAndMapResultSetToTestEntity() throws SQLException {
+        String sql = "SELECT * FROM table";
+        TestEntity expectedEntity = getTestEntity();
+
+        when(dataSource.getConnection()).thenReturn(connection);
+        when(connection.prepareStatement(sql)).thenReturn(preparedStatement);
+        when(executor.execute(preparedStatement)).thenReturn(resultSet);
+        when(rowMapper.mapResultSetToEntity(resultSet, mapper)).thenReturn(expectedEntity);
+
+        TestEntity result = (TestEntity) jdbcTemplate.query(sql, mapper);
+
+        verify(executor, times(1)).execute(preparedStatement);
+        verify(rowMapper, times(1)).mapResultSetToEntity(resultSet, mapper);
+        assertEquals(expectedEntity, result);
+    }
+
+    @Test
+    void shouldQueryForObjectUsingTestEntityAndParameters() throws SQLException {
+        String sql = "SELECT * FROM table WHERE id = ?";
+        TestEntity expectedEntity = getTestEntity();
+
+        when(dataSource.getConnection()).thenReturn(connection);
+        when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
+        when(executor.execute(preparedStatement)).thenReturn(resultSet);
+        when(rowMapper.mapResultSetToEntity(resultSet, mapper)).thenReturn(expectedEntity);
+
+        TestEntity result = (TestEntity) jdbcTemplate.queryForObject(sql, mapper, 1);
+
+        verify(preparedStatement, times(1)).setObject(1, 1);
+        assertEquals(expectedEntity, result);
+    }
+
+    private TestEntity getTestEntity() {
+        TestEntity expectedEntity = new TestEntity();
+        expectedEntity.setId(1);
+        expectedEntity.setName("Name");
+        return expectedEntity;
+    }
+
 
 }
