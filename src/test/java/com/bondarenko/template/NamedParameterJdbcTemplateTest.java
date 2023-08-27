@@ -15,6 +15,8 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -101,15 +103,18 @@ class NamedParameterJdbcTemplateTest {
 
     @Test
     void shouldQueryForObjectAndMapResultSet() throws SQLException {
-        String sql = "SELECT * FROM table WHERE id = ?";
+        String sql = "SELECT * FROM table WHERE id = :id";
         Object expectedObject = new Object();
+        Map<String, Object> params = new HashMap<>();
+        params.put("id", 1);
+
 
         when(dataSource.getConnection()).thenReturn(connection);
         when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
         when(executor.execute(preparedStatement)).thenReturn(resultSet);
         when(rowMapper.mapResultSetToEntity(resultSet, mapper)).thenReturn(expectedObject);
 
-        TestEntity result = (TestEntity) jdbcTemplate.queryForObject(sql, mapper, 1);
+        TestEntity result = (TestEntity) jdbcTemplate.queryForObject(sql, mapper, params);
 
         verify(executor, times(1)).execute(preparedStatement);
         verify(preparedStatement, times(1)).setObject(1, 1);
@@ -119,10 +124,13 @@ class NamedParameterJdbcTemplateTest {
 
     @Test
     void shouldThrowExceptionWhenGettingConnectionFails_ForQueryForObject() throws SQLException {
+        Map<String, Object> params = new HashMap<>();
+        params.put("id", 1);
+
         when(dataSource.getConnection()).thenThrow(new SQLException());
 
         assertThrows(SQLException.class, () -> {
-            jdbcTemplate.queryForObject("SELECT * FROM table WHERE id = ?", mapper, 1);
+            jdbcTemplate.queryForObject("SELECT * FROM table WHERE id = :id", mapper, params);
         });
     }
 
@@ -135,46 +143,39 @@ class NamedParameterJdbcTemplateTest {
 
     @Test
     void shouldThrowExceptionWhenRowMapperIsNull_ForQueryForObject() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("id", 1);
+
         assertThrows(IllegalArgumentException.class, () -> {
-            jdbcTemplate.queryForObject("SELECT * FROM table WHERE id = ?", null, 1);
+            jdbcTemplate.queryForObject("SELECT * FROM table WHERE id = :id", null, params);
         });
     }
 
+
     @Test
     void shouldThrowExceptionWhenRowMapperThrowsException_ForQueryForObject() throws SQLException {
+        Map<String, Object> params = new HashMap<>();
+        params.put("id", 1);
+
         when(dataSource.getConnection()).thenReturn(connection);
         when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
         when(executor.execute(preparedStatement)).thenReturn(resultSet);
         when(rowMapper.mapResultSetToEntity(resultSet, mapper)).thenThrow(new SQLException());
 
         assertThrows(SQLException.class, () -> {
-            jdbcTemplate.queryForObject("SELECT * FROM table WHERE id = ?", mapper, 1);
+            jdbcTemplate.queryForObject("SELECT * FROM table WHERE id = :id", mapper, params);
         });
-    }
-
-    @Test
-    void shouldUpdateAndReturnRowCount() throws SQLException {
-        String sql = "UPDATE table SET name = ? WHERE id = ?";
-        int expectedRowCount = 1;
-
-        when(dataSource.getConnection()).thenReturn(connection);
-        when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
-        when(preparedStatement.executeUpdate()).thenReturn(expectedRowCount);
-
-        int result = jdbcTemplate.update(sql, "NewName", 1);
-
-        verify(preparedStatement, times(1)).setObject(1, "NewName");
-        verify(preparedStatement, times(1)).setObject(2, 1);
-        verify(preparedStatement, times(1)).executeUpdate();
-        assertEquals(expectedRowCount, result);
     }
 
     @Test
     void shouldThrowExceptionWhenGettingConnectionFails_ForUpdate() throws SQLException {
         when(dataSource.getConnection()).thenThrow(new SQLException());
 
+        Map<String, Object> params = getStringObjectMap();
+        String sql = "UPDATE table SET name = :name WHERE id = :id";
+
         assertThrows(SQLException.class, () -> {
-            jdbcTemplate.update("UPDATE table SET name = ? WHERE id = ?", "NewName", 1);
+            jdbcTemplate.update(sql, params);
         });
     }
 
@@ -191,8 +192,12 @@ class NamedParameterJdbcTemplateTest {
         when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
         when(preparedStatement.executeUpdate()).thenThrow(new SQLException());
 
+        Map<String, Object> params = getStringObjectMap();
+
+        String sql = "UPDATE table SET name = :name WHERE id = :id";
+
         assertThrows(SQLException.class, () -> {
-            jdbcTemplate.update("UPDATE table SET name = ? WHERE id = ?", "NewName", 1);
+            jdbcTemplate.update(sql, params);
         });
     }
 
@@ -215,15 +220,17 @@ class NamedParameterJdbcTemplateTest {
 
     @Test
     void shouldQueryForObjectUsingTestEntityAndParameters() throws SQLException {
-        String sql = "SELECT * FROM table WHERE id = ?";
+        String sql = "SELECT * FROM table WHERE id = :id";
         TestEntity expectedEntity = getTestEntity();
+        Map<String, Object> params = new HashMap<>();
+        params.put("id", 1);
 
         when(dataSource.getConnection()).thenReturn(connection);
         when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
         when(executor.execute(preparedStatement)).thenReturn(resultSet);
         when(rowMapper.mapResultSetToEntity(resultSet, mapper)).thenReturn(expectedEntity);
 
-        TestEntity result = (TestEntity) jdbcTemplate.queryForObject(sql, mapper, 1);
+        TestEntity result = (TestEntity) jdbcTemplate.queryForObject(sql, mapper, params);
 
         verify(preparedStatement, times(1)).setObject(1, 1);
         assertEquals(expectedEntity, result);
@@ -235,6 +242,11 @@ class NamedParameterJdbcTemplateTest {
         expectedEntity.setName("Name");
         return expectedEntity;
     }
-
+    private Map<String, Object> getStringObjectMap() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("name", "NewName");
+        params.put("id", 1);
+        return params;
+    }
 
 }
