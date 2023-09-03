@@ -1,15 +1,16 @@
 package com.bondarenko.template;
 
-import com.bondarenko.PrepareStatementExecutor;
 import com.bondarenko.mapper.ResultSetMapper;
 import com.bondarenko.mapper.RowMapper;
 
 import javax.sql.DataSource;
+import java.sql.PreparedStatement;
+import java.util.List;
 
-public class JdbcTemplate implements JdbcOperations {
+public class JdbcTemplate<T> implements JdbcOperations<T> {
     private DataSource dataSource;
-    private PrepareStatementExecutor executor;
     private ResultSetMapper resultSetMapper;
+    private PreparedStatement statement;
 
     public JdbcTemplate(DataSource dataSource) {
         this.dataSource = dataSource;
@@ -17,12 +18,12 @@ public class JdbcTemplate implements JdbcOperations {
     }
 
     @Override
-    public Object query(String sql, RowMapper rowMapper) {
+    public List<T> query(String sql, RowMapper<T> rowMapper) {
         return null;
     }
 
     @Override
-    public Object queryForObject(String sql, RowMapper rowMapper, Object... params) {
+    public T queryForObject(String sql, RowMapper<T> rowMapper, Object... params) {
         return null;
     }
 

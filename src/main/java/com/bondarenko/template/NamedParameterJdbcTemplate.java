@@ -1,30 +1,29 @@
 package com.bondarenko.template;
 
-import com.bondarenko.PrepareStatementExecutor;
 import com.bondarenko.mapper.RowMapper;
 
 import javax.sql.DataSource;
+import java.sql.PreparedStatement;
+import java.util.List;
 
-public class NamedParameterJdbcTemplate implements JdbcOperations {
+public class NamedParameterJdbcTemplate<T> implements JdbcOperations <T>{
     private DataSource dataSource;
-    private PrepareStatementExecutor executor;
     private RowMapper mapper;
+    private PreparedStatement statement;
 
     public NamedParameterJdbcTemplate(DataSource dataSource) {
         this.dataSource = dataSource;
-        this.executor = new PrepareStatementExecutor();
     }
 
     @Override
-    public Object query(String sql, RowMapper rowMapper) {
+    public List<T> query(String sql, RowMapper<T> rowMapper) {
         return null;
     }
 
     @Override
-    public Object queryForObject(String sql, RowMapper rowMapper, Object... params) {
+    public T queryForObject(String sql, RowMapper<T> rowMapper, Object... params) {
         return null;
     }
-
 
     @Override
     public int update(String sql, Object... params) {

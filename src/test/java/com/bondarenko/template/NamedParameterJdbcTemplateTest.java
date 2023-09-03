@@ -1,10 +1,11 @@
 package com.bondarenko.template;
 
-import com.bondarenko.PrepareStatementExecutor;
 import com.bondarenko.TestEntity;
+import com.bondarenko.TestUtil;
 import com.bondarenko.mapper.ResultSetMapper;
 import com.bondarenko.mapper.RowMapper;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -16,6 +17,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -23,105 +25,99 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class NamedParameterJdbcTemplateTest {
+class NamedParameterJdbcTemplateTest<T> {
     @Mock
     private DataSource dataSource;
     @Mock
-    private PrepareStatementExecutor executor;
+    private ResultSetMapper<TestEntity> rowMapper;
     @Mock
-    private ResultSetMapper rowMapper;
-    @Mock
-    private RowMapper<Object> mapper;
+    private RowMapper<TestEntity> mapper;
     @Mock
     private Connection connection;
     @Mock
     private PreparedStatement preparedStatement;
     @Mock
     private ResultSet resultSet;
-    private NamedParameterJdbcTemplate jdbcTemplate;
+    private NamedParameterJdbcTemplate<TestEntity> namedParameterJdbcTemplate;
 
     @BeforeEach
     void setUp() {
-        jdbcTemplate = new NamedParameterJdbcTemplate(dataSource);
+        namedParameterJdbcTemplate = new NamedParameterJdbcTemplate<>(dataSource);
     }
 
+    @DisplayName("Should Query And Map ResultSet To List")
     @Test
-    void shouldQueryAndMapResultSet() throws SQLException {
-        String sql = "SELECT * FROM table";
-        Object expectedObject = new Object();
+    void shouldQueryAndMapResultSetToList() throws SQLException {
+        // Given
+        String sql = "SELECT id, name FROM table";
+        TestEntity expectedEntity = TestUtil.getTestEntity(1, "Test Name");
 
+        // Setup Mock Behavior
         when(dataSource.getConnection()).thenReturn(connection);
         when(connection.prepareStatement(sql)).thenReturn(preparedStatement);
-        when(executor.execute(preparedStatement)).thenReturn(resultSet);
-        when(rowMapper.mapResultSetToEntity(resultSet, mapper)).thenReturn(expectedObject);
+        when(preparedStatement.executeQuery()).thenReturn(resultSet);
+        when(resultSet.next()).thenReturn(true).thenReturn(false);
+        when(rowMapper.mapResultSetToEntity(resultSet, mapper)).thenReturn(expectedEntity);
 
-        TestEntity result = (TestEntity) jdbcTemplate.query(sql, mapper);
+        // When
+        List<TestEntity> result = namedParameterJdbcTemplate.query(sql, mapper);
 
-        verify(executor, times(1)).execute(preparedStatement);
+        // Then
+        verify(preparedStatement, times(1)).executeQuery();
         verify(rowMapper, times(1)).mapResultSetToEntity(resultSet, mapper);
-        assertEquals(expectedObject, result);
+        assertEquals(1, result.size());
+        assertEquals(expectedEntity, result.get(0));
     }
 
+    @DisplayName("Should throw SQLException when connection to the database is fails")
     @Test
     void shouldThrowException_When_GetConnectionFails() throws SQLException {
-        when(dataSource.getConnection()).thenThrow(new SQLException());
+        // Setup Mock Behavior
+        when(dataSource.getConnection()).thenThrow(new SQLException("Connection failed"));
 
-        assertThrows(SQLException.class, () -> {
-            jdbcTemplate.query("SELECT * FROM table", mapper);
+        SQLException exception = assertThrows(SQLException.class, () -> {
+            namedParameterJdbcTemplate.query("SELECT id, name FROM table", mapper);
         });
+
+        assertEquals("Connection failed", exception.getMessage());
     }
 
+    @DisplayName("Should throw IllegalArgumentException when RowMapper is null")
     @Test
     void shouldThrowException_When_RowMapperIsNull() {
-        assertThrows(IllegalArgumentException.class, () -> {
-            jdbcTemplate.query("SELECT * FROM table", null);
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+            namedParameterJdbcTemplate.query("SELECT id, name FROM table", null);
         });
+
+        assertEquals("RowMapper should not be null", exception.getMessage());
     }
 
+    @DisplayName("Should close PreparedStatement when query completes")
     @Test
     void shouldClosePreparedStatement_When_QueryCompletes() throws SQLException {
         when(dataSource.getConnection()).thenReturn(connection);
         when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
-        when(executor.execute(preparedStatement)).thenReturn(resultSet);
+        when(preparedStatement.execute()).thenReturn(true);
 
-        jdbcTemplate.query("SELECT * FROM table", mapper);
+        namedParameterJdbcTemplate.query("SELECT id, name FROM table", mapper);
 
         verify(preparedStatement, times(1)).close();
     }
 
+    @DisplayName("Should throw SQLException when RowMapper throws exception")
     @Test
     void shouldThrowException_When_RowMapperThrowsException() throws SQLException {
         when(dataSource.getConnection()).thenReturn(connection);
         when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
-        when(executor.execute(preparedStatement)).thenReturn(resultSet);
+        when(preparedStatement.execute()).thenReturn(true);
         when(rowMapper.mapResultSetToEntity(resultSet, mapper)).thenThrow(new SQLException());
 
         assertThrows(SQLException.class, () -> {
-            jdbcTemplate.query("SELECT * FROM table", mapper);
+            namedParameterJdbcTemplate.query("SELECT id, name FROM table", mapper);
         });
     }
 
-    @Test
-    void shouldQueryForObjectAndMapResultSet() throws SQLException {
-        String sql = "SELECT * FROM table WHERE id = :id";
-        Object expectedObject = new Object();
-        Map<String, Object> params = new HashMap<>();
-        params.put("id", 1);
-
-
-        when(dataSource.getConnection()).thenReturn(connection);
-        when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
-        when(executor.execute(preparedStatement)).thenReturn(resultSet);
-        when(rowMapper.mapResultSetToEntity(resultSet, mapper)).thenReturn(expectedObject);
-
-        TestEntity result = (TestEntity) jdbcTemplate.queryForObject(sql, mapper, params);
-
-        verify(executor, times(1)).execute(preparedStatement);
-        verify(preparedStatement, times(1)).setObject(1, 1);
-        verify(rowMapper, times(1)).mapResultSetToEntity(resultSet, mapper);
-        assertEquals(expectedObject, result);
-    }
-
+    @DisplayName("Should Throw Exception When Getting Connection Fails For queryForObject")
     @Test
     void shouldThrowExceptionWhenGettingConnectionFails_ForQueryForObject() throws SQLException {
         Map<String, Object> params = new HashMap<>();
@@ -130,123 +126,124 @@ class NamedParameterJdbcTemplateTest {
         when(dataSource.getConnection()).thenThrow(new SQLException());
 
         assertThrows(SQLException.class, () -> {
-            jdbcTemplate.queryForObject("SELECT * FROM table WHERE id = :id", mapper, params);
+            namedParameterJdbcTemplate.queryForObject("SELECT  id, name  FROM table WHERE id = :id", mapper, params);
         });
     }
 
+    @DisplayName("Should Throw Exception When Sql Is Null for queryForObject")
     @Test
     void shouldThrowExceptionWhenSqlIsNull_ForQueryForObject() {
         assertThrows(IllegalArgumentException.class, () -> {
-            jdbcTemplate.queryForObject(null, mapper, 1);
+            namedParameterJdbcTemplate.queryForObject(null, mapper, 1);
         });
     }
 
+    @DisplayName("Should Throw Exception When RowMapper Is Null For QueryForObject Operation")
     @Test
     void shouldThrowExceptionWhenRowMapperIsNull_ForQueryForObject() {
+        // Given
+        String sql = "SELECT id, name FROM table WHERE id = :id";
         Map<String, Object> params = new HashMap<>();
         params.put("id", 1);
 
+        // Then
         assertThrows(IllegalArgumentException.class, () -> {
-            jdbcTemplate.queryForObject("SELECT * FROM table WHERE id = :id", null, params);
+            // When
+            namedParameterJdbcTemplate.queryForObject(sql, null, params);
         });
     }
 
 
+    @DisplayName("Should Throw Exception When RowMapper Throws Exception For QueryForObject Operation")
     @Test
     void shouldThrowExceptionWhenRowMapperThrowsException_ForQueryForObject() throws SQLException {
+        // Given
+        String sql = "SELECT id, name FROM table WHERE id = :id";
         Map<String, Object> params = new HashMap<>();
         params.put("id", 1);
 
+        // Mock behavior
         when(dataSource.getConnection()).thenReturn(connection);
         when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
-        when(executor.execute(preparedStatement)).thenReturn(resultSet);
+        when(preparedStatement.execute()).thenReturn(true);
         when(rowMapper.mapResultSetToEntity(resultSet, mapper)).thenThrow(new SQLException());
 
+        // Then
         assertThrows(SQLException.class, () -> {
-            jdbcTemplate.queryForObject("SELECT * FROM table WHERE id = :id", mapper, params);
+            // When
+            namedParameterJdbcTemplate.queryForObject(sql, mapper, params);
         });
+
+        verify(preparedStatement, times(1)).execute();
+        verify(rowMapper, times(1)).mapResultSetToEntity(resultSet, mapper);
     }
 
+
+    @DisplayName("Should Throw Exception When Getting Connection Fails For Update Operation")
     @Test
     void shouldThrowExceptionWhenGettingConnectionFails_ForUpdate() throws SQLException {
+        // Given
+        String sql = "UPDATE table SET name = :name WHERE id = :id";
+        Map<String, Object> params = TestUtil.getStringObjectMap();
+
+        // Mock behavior
         when(dataSource.getConnection()).thenThrow(new SQLException());
 
-        Map<String, Object> params = getStringObjectMap();
-        String sql = "UPDATE table SET name = :name WHERE id = :id";
-
+        // Then
         assertThrows(SQLException.class, () -> {
-            jdbcTemplate.update(sql, params);
+            // When
+            namedParameterJdbcTemplate.update(sql, params);
         });
+
+        verifyNoInteractions(preparedStatement);
     }
 
+    @DisplayName("Should throw IllegalArgumentException when SQL query is null for queryForObject")
     @Test
     void shouldThrowExceptionWhenSqlIsNull_ForUpdate() {
         assertThrows(IllegalArgumentException.class, () -> {
-            jdbcTemplate.update(null, "NewName", 1);
+            namedParameterJdbcTemplate.update(null, "NewName", 1);
         });
     }
 
+    @DisplayName("Should Throw Exception When Execute Update Throws Exception")
     @Test
     void shouldThrowExceptionWhenExecuteUpdateThrowsException() throws SQLException {
+        // Given
+        String sql = "UPDATE table SET name = :name WHERE id = :id";
+        Map<String, Object> params = TestUtil.getStringObjectMap();
+
+        // Mock behavior
         when(dataSource.getConnection()).thenReturn(connection);
         when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
         when(preparedStatement.executeUpdate()).thenThrow(new SQLException());
 
-        Map<String, Object> params = getStringObjectMap();
-
-        String sql = "UPDATE table SET name = :name WHERE id = :id";
-
+        // Then
         assertThrows(SQLException.class, () -> {
-            jdbcTemplate.update(sql, params);
+            // When
+            namedParameterJdbcTemplate.update(sql, params);
         });
+
+        verify(preparedStatement, times(1)).executeUpdate();
     }
 
-    @Test
-    void shouldQueryAndMapResultSetToTestEntity() throws SQLException {
-        String sql = "SELECT * FROM table";
-        TestEntity expectedEntity = getTestEntity();
-
-        when(dataSource.getConnection()).thenReturn(connection);
-        when(connection.prepareStatement(sql)).thenReturn(preparedStatement);
-        when(executor.execute(preparedStatement)).thenReturn(resultSet);
-        when(rowMapper.mapResultSetToEntity(resultSet, mapper)).thenReturn(expectedEntity);
-
-        TestEntity result = (TestEntity) jdbcTemplate.query(sql, mapper);
-
-        verify(executor, times(1)).execute(preparedStatement);
-        verify(rowMapper, times(1)).mapResultSetToEntity(resultSet, mapper);
-        assertEquals(expectedEntity, result);
-    }
-
+    @DisplayName("Should Query For Object Using TestEntity And Parameters")
     @Test
     void shouldQueryForObjectUsingTestEntityAndParameters() throws SQLException {
-        String sql = "SELECT * FROM table WHERE id = :id";
-        TestEntity expectedEntity = getTestEntity();
+        String sql = "SELECT  id, name  FROM table WHERE id = :id";
+        TestEntity expectedEntity = TestUtil.getTestEntity(1, "TestName");
         Map<String, Object> params = new HashMap<>();
         params.put("id", 1);
 
         when(dataSource.getConnection()).thenReturn(connection);
         when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
-        when(executor.execute(preparedStatement)).thenReturn(resultSet);
+        when(preparedStatement.execute()).thenReturn(true);
         when(rowMapper.mapResultSetToEntity(resultSet, mapper)).thenReturn(expectedEntity);
 
-        TestEntity result = (TestEntity) jdbcTemplate.queryForObject(sql, mapper, params);
+        TestEntity result = namedParameterJdbcTemplate.queryForObject(sql, mapper, params);
 
         verify(preparedStatement, times(1)).setObject(1, 1);
         assertEquals(expectedEntity, result);
-    }
-
-    private TestEntity getTestEntity() {
-        TestEntity expectedEntity = new TestEntity();
-        expectedEntity.setId(1);
-        expectedEntity.setName("Name");
-        return expectedEntity;
-    }
-    private Map<String, Object> getStringObjectMap() {
-        Map<String, Object> params = new HashMap<>();
-        params.put("name", "NewName");
-        params.put("id", 1);
-        return params;
     }
 
 }
