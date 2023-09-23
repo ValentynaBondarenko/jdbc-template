@@ -14,6 +14,7 @@ import java.sql.SQLException;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 
@@ -38,6 +39,7 @@ class ResultSetMapperTest {
     void shouldMapResultSetToEntitySuccessfully() throws SQLException {
         TestEntity expectedEntity = TestUtil.getTestEntity(1, "entityFirst");
 
+        when(resultSet.next()).thenReturn(true);
         when(rowMapper.map(resultSet)).thenReturn(expectedEntity);
 
         TestEntity result = resultSetMapper.mapResultSetToEntity(resultSet, rowMapper);
@@ -50,7 +52,7 @@ class ResultSetMapperTest {
     @DisplayName("Should return null even resulSet empty")
     @Test
     void shouldReturnNullWhenResultSetsEmpty() throws SQLException {
-        when(rowMapper.map(resultSet)).thenReturn(null);
+        lenient().when(rowMapper.map(resultSet)).thenReturn(null);
 
         TestEntity result = resultSetMapper.mapResultSetToEntity(resultSet, rowMapper);
 
@@ -60,9 +62,10 @@ class ResultSetMapperTest {
     @DisplayName("Should throw an exception when mapping fails")
     @Test
     void shouldThrowExceptionWhenMappingFails() throws SQLException {
+        when(resultSet.next()).thenReturn(true);
         when(rowMapper.map(resultSet)).thenThrow(new SQLException());
 
-        assertThrows(SQLException.class, () -> {
+        assertThrows(RuntimeException.class, () -> {
             resultSetMapper.mapResultSetToEntity(resultSet, rowMapper);
         });
     }

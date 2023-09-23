@@ -3,6 +3,7 @@ package com.bondarenko.template;
 import com.bondarenko.TestEntity;
 import com.bondarenko.TestUtil;
 import com.bondarenko.mapper.RowMapper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -17,12 +18,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 public class JdbcTemplateITest {
-    private JdbcTemplate<TestEntity> jdbcTemplate;
+    private JdbcTemplate jdbcTemplate;
+    private final DataSource dataSource = TestUtil.getJdbcDataSource();
 
     @BeforeEach
     public void setUp() throws SQLException {
-        DataSource dataSource = TestUtil.getJdbcDataSource();
-        jdbcTemplate = new JdbcTemplate<>(dataSource);
+
+        jdbcTemplate = new JdbcTemplate(dataSource);
 
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement(
@@ -73,5 +75,14 @@ public class JdbcTemplateITest {
                 TestUtil::getTestEntityByResultSet, 1);
 
         assertEquals("UpdatedEntity", updatedEntity.getName());
+    }
+
+    @AfterEach
+    public void down() throws SQLException {
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(
+                     "DROP TABLE test_table;")) {
+            statement.execute();
+        }
     }
 }

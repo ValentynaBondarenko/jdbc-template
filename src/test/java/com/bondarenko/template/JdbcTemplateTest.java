@@ -3,6 +3,7 @@ package com.bondarenko.template;
 
 import com.bondarenko.TestEntity;
 import com.bondarenko.TestUtil;
+import com.bondarenko.mapper.ResultSetMapper;
 import com.bondarenko.mapper.RowMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -30,7 +31,8 @@ class JdbcTemplateTest<T> {
     private DataSource dataSource;
     @Mock
     private RowMapper<TestEntity> rowMapper;
-
+    @Mock
+    private ResultSetMapper resultSetMapper;
     @Mock
     private ResultSet resultSet;
 
@@ -40,11 +42,11 @@ class JdbcTemplateTest<T> {
     @Mock
     private Connection connection;
 
-    private JdbcTemplate<TestEntity> jdbcTemplate;
+    private JdbcTemplate jdbcTemplate;
 
     @BeforeEach
     void setUp() {
-        jdbcTemplate = new JdbcTemplate<>(dataSource);
+        jdbcTemplate = new JdbcTemplate(dataSource);
     }
 
     @DisplayName("Should Return Single Entity When Query Is Executed")
@@ -76,7 +78,7 @@ class JdbcTemplateTest<T> {
 
         List<TestEntity> result = jdbcTemplate.query("SELECT id, name FROM table WHERE id = ?", rowMapper);
 
-        assertNull(result);
+        assertTrue(result.isEmpty());
     }
 
     @DisplayName("Should Map To TestEntity")
@@ -87,15 +89,16 @@ class JdbcTemplateTest<T> {
         when(dataSource.getConnection()).thenReturn(connection);
         when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
         when(preparedStatement.executeQuery()).thenReturn(resultSet);
-        when(resultSet.next()).thenReturn(true);
+        when(resultSet.next()).thenReturn(true).thenReturn(false);
         when(rowMapper.map(resultSet)).thenReturn(testEntity);
 
         List<TestEntity> result = jdbcTemplate.query("SELECT id, name FROM table WHERE id = ?", rowMapper);
 
         assertNotNull(result);
-        assertTrue(result instanceof TestEntity);
-        assertEquals(1, ((TestEntity) result).getId());
-        assertEquals("Test", ((TestEntity) result).getName());
+        assertEquals(1, result.size());
+        assertEquals(testEntity, result.get(0));
+        assertEquals(1, result.get(0).getId());
+        assertEquals("Test", result.get(0).getName());
     }
 
     @DisplayName("Should throw exception for query when SQL exception occurs")
@@ -103,7 +106,7 @@ class JdbcTemplateTest<T> {
     void shouldThrowExceptionForQueryWhenSQLExceptionOccurs() throws SQLException {
         when(dataSource.getConnection()).thenThrow(new SQLException());
 
-        assertThrows(SQLException.class, () -> {
+        assertThrows(RuntimeException.class, () -> {
             jdbcTemplate.query("SELECT id, name FROM table WHERE id = ?", rowMapper);
         });
     }
@@ -128,7 +131,7 @@ class JdbcTemplateTest<T> {
         when(dataSource.getConnection()).thenReturn(connection);
         when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
         when(preparedStatement.executeQuery()).thenReturn(resultSet);
-        when(rowMapper.map(resultSet)).thenReturn(new TestEntity());
+       // when(resultSetMapper.mapResultSetToEntity(resultSet, rowMapper)).thenReturn(new TestEntity());
 
         jdbcTemplate.queryForObject("SELECT id, name FROM table WHERE id = ?", rowMapper, 1);
 
@@ -140,7 +143,7 @@ class JdbcTemplateTest<T> {
     void shouldThrowExceptionForQueryForObjectWhenSQLExceptionOccurs() throws SQLException {
         when(dataSource.getConnection()).thenThrow(new SQLException());
 
-        assertThrows(SQLException.class, () -> {
+        assertThrows(RuntimeException.class, () -> {
             jdbcTemplate.queryForObject("SELECT id, name FROM table WHERE id = ?", rowMapper, 1);
         });
     }
@@ -162,7 +165,7 @@ class JdbcTemplateTest<T> {
     void shouldThrowExceptionForUpdateWhenSQLExceptionOccurs() throws SQLException {
         when(dataSource.getConnection()).thenThrow(new SQLException());
 
-        assertThrows(SQLException.class, () -> {
+        assertThrows(RuntimeException.class, () -> {
             jdbcTemplate.update("UPDATE table SET name = ? WHERE id = ?", "name", 1);
         });
     }

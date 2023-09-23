@@ -12,22 +12,20 @@ import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 public class NamedParameterJdbcTemplateITest {
-    private DataSource dataSource;
+    private DataSource dataSource = TestUtil.getJdbcDataSource();
 
     private NamedParameterJdbcTemplate<TestEntity> namedParameterJdbcTemplate;
 
     @BeforeEach
     public void setUp() throws SQLException {
         namedParameterJdbcTemplate = new NamedParameterJdbcTemplate<>(dataSource);
-        dataSource = TestUtil.getJdbcDataSource();
+
         try (Connection connection = dataSource.getConnection()) {
             try (PreparedStatement statement = connection.prepareStatement(
                     "CREATE TABLE IF NOT EXISTS test_table (id INT PRIMARY KEY, name VARCHAR(255));")) {
@@ -51,7 +49,6 @@ public class NamedParameterJdbcTemplateITest {
     @Test
     public void query_ShouldReturnCorrectEntities() {
         RowMapper<TestEntity> rowMapper = TestUtil::getTestEntityByResultSet;
-
         List<TestEntity> entities = namedParameterJdbcTemplate.query("SELECT id, name FROM test_table", rowMapper);
 
         assertNotNull(entities);
@@ -66,11 +63,11 @@ public class NamedParameterJdbcTemplateITest {
     @Test
     public void queryForObject_ShouldReturnCorrectEntity() {
         RowMapper<TestEntity> rowMapper = TestUtil::getTestEntityByResultSet;
-
-        Map<String, Object> params = new HashMap<>();
-        params.put("id", 1);
-
-        TestEntity entity = namedParameterJdbcTemplate.queryForObject("SELECT id, name FROM test_table WHERE id = :id", rowMapper, params);
+        TestEntity entity = namedParameterJdbcTemplate.queryForObject(
+                "SELECT id, name FROM test_table WHERE id = :id",
+                rowMapper,
+                "id", 1
+        );
 
         assertNotNull(entity);
         assertEquals(1, entity.getId());
@@ -80,20 +77,25 @@ public class NamedParameterJdbcTemplateITest {
     @DisplayName("Should update entity")
     @Test
     public void update_ShouldUpdateEntity() {
-        Map<String, Object> params = new HashMap<>();
-        params.put("name", "UpdatedEntity");
-        params.put("id", 1);
-
-        int updatedRows = namedParameterJdbcTemplate.update("UPDATE test_table SET name = :name WHERE id = :id", params);
+        int updatedRows = namedParameterJdbcTemplate.update(
+                "UPDATE test_table SET name = :name WHERE id = :id",
+                "name", "UpdatedEntity",
+                "id", 1
+        );
 
         assertEquals(1, updatedRows);
 
         RowMapper<TestEntity> rowMapper = TestUtil::getTestEntityByResultSet;
-        TestEntity updatedEntity = namedParameterJdbcTemplate.queryForObject("SELECT id, name FROM test_table WHERE id = :id", rowMapper, params);
+        TestEntity updatedEntity = namedParameterJdbcTemplate.queryForObject(
+                "SELECT id, name FROM test_table WHERE id = :id",
+                rowMapper,
+                "id", 1
+        );
 
         assertNotNull(updatedEntity);
         assertEquals("UpdatedEntity", updatedEntity.getName());
     }
+
 
     @AfterEach
     public void down() throws SQLException {

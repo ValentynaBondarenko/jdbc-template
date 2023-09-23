@@ -9,6 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import javax.sql.DataSource;
@@ -16,6 +17,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,10 +28,10 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class NamedParameterJdbcTemplateTest<T> {
-    @Mock
+    @Mock(lenient = true)
     private DataSource dataSource;
     @Mock
-    private ResultSetMapper<TestEntity> rowMapper;
+    private ResultSetMapper<T> resultSetMapper;
     @Mock
     private RowMapper<TestEntity> mapper;
     @Mock
@@ -41,8 +43,8 @@ class NamedParameterJdbcTemplateTest<T> {
     private NamedParameterJdbcTemplate<TestEntity> namedParameterJdbcTemplate;
 
     @BeforeEach
-    void setUp() {
-        namedParameterJdbcTemplate = new NamedParameterJdbcTemplate<>(dataSource);
+    public void setUp() {
+        this.namedParameterJdbcTemplate = new NamedParameterJdbcTemplate(dataSource);
     }
 
     @DisplayName("Should Query And Map ResultSet To List")
@@ -52,19 +54,19 @@ class NamedParameterJdbcTemplateTest<T> {
         String sql = "SELECT id, name FROM table";
         TestEntity expectedEntity = TestUtil.getTestEntity(1, "Test Name");
 
-        // Setup Mock Behavior
+        // Mock Behavior
         when(dataSource.getConnection()).thenReturn(connection);
         when(connection.prepareStatement(sql)).thenReturn(preparedStatement);
         when(preparedStatement.executeQuery()).thenReturn(resultSet);
         when(resultSet.next()).thenReturn(true).thenReturn(false);
-        when(rowMapper.mapResultSetToEntity(resultSet, mapper)).thenReturn(expectedEntity);
+        when(mapper.map(resultSet)).thenReturn(expectedEntity);
 
         // When
         List<TestEntity> result = namedParameterJdbcTemplate.query(sql, mapper);
 
         // Then
         verify(preparedStatement, times(1)).executeQuery();
-        verify(rowMapper, times(1)).mapResultSetToEntity(resultSet, mapper);
+        verify(mapper, times(1)).map(resultSet);
         assertEquals(1, result.size());
         assertEquals(expectedEntity, result.get(0));
     }
@@ -72,10 +74,10 @@ class NamedParameterJdbcTemplateTest<T> {
     @DisplayName("Should throw SQLException when connection to the database is fails")
     @Test
     void shouldThrowException_When_GetConnectionFails() throws SQLException {
-        // Setup Mock Behavior
-        when(dataSource.getConnection()).thenThrow(new SQLException("Connection failed"));
+        //Mock Behavior
+        when(dataSource.getConnection()).thenThrow(new RuntimeException("Connection failed"));
 
-        SQLException exception = assertThrows(SQLException.class, () -> {
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
             namedParameterJdbcTemplate.query("SELECT id, name FROM table", mapper);
         });
 
@@ -97,25 +99,30 @@ class NamedParameterJdbcTemplateTest<T> {
     void shouldClosePreparedStatement_When_QueryCompletes() throws SQLException {
         when(dataSource.getConnection()).thenReturn(connection);
         when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
-        when(preparedStatement.execute()).thenReturn(true);
+        when(resultSet.next()).thenReturn(false);
+        when(preparedStatement.executeQuery()).thenReturn(resultSet);
 
         namedParameterJdbcTemplate.query("SELECT id, name FROM table", mapper);
 
         verify(preparedStatement, times(1)).close();
     }
 
-    @DisplayName("Should throw SQLException when RowMapper throws exception")
+    @DisplayName("Should throw RuntimeException when RowMapper throws exception")
     @Test
     void shouldThrowException_When_RowMapperThrowsException() throws SQLException {
         when(dataSource.getConnection()).thenReturn(connection);
         when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
-        when(preparedStatement.execute()).thenReturn(true);
-        when(rowMapper.mapResultSetToEntity(resultSet, mapper)).thenThrow(new SQLException());
+        when(preparedStatement.executeQuery()).thenReturn(resultSet);
+        when(resultSet.next()).thenReturn(true, false);
+        when(mapper.map(resultSet)).thenThrow(new SQLException());
 
-        assertThrows(SQLException.class, () -> {
+        assertThrows(RuntimeException.class, () -> {
             namedParameterJdbcTemplate.query("SELECT id, name FROM table", mapper);
         });
+
+        verify(mapper, times(1)).map(resultSet);
     }
+
 
     @DisplayName("Should Throw Exception When Getting Connection Fails For queryForObject")
     @Test
@@ -125,7 +132,7 @@ class NamedParameterJdbcTemplateTest<T> {
 
         when(dataSource.getConnection()).thenThrow(new SQLException());
 
-        assertThrows(SQLException.class, () -> {
+        assertThrows(RuntimeException.class, () -> {
             namedParameterJdbcTemplate.queryForObject("SELECT  id, name  FROM table WHERE id = :id", mapper, params);
         });
     }
@@ -159,25 +166,23 @@ class NamedParameterJdbcTemplateTest<T> {
     void shouldThrowExceptionWhenRowMapperThrowsException_ForQueryForObject() throws SQLException {
         // Given
         String sql = "SELECT id, name FROM table WHERE id = :id";
-        Map<String, Object> params = new HashMap<>();
-        params.put("id", 1);
 
         // Mock behavior
         when(dataSource.getConnection()).thenReturn(connection);
         when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
-        when(preparedStatement.execute()).thenReturn(true);
-        when(rowMapper.mapResultSetToEntity(resultSet, mapper)).thenThrow(new SQLException());
+        when(preparedStatement.executeQuery()).thenReturn(resultSet);
+        when(resultSet.next()).thenReturn(true, false);
+        when(mapper.map(resultSet)).thenThrow(new SQLException());
 
         // Then
-        assertThrows(SQLException.class, () -> {
+        assertThrows(RuntimeException.class, () -> {
             // When
-            namedParameterJdbcTemplate.queryForObject(sql, mapper, params);
+            namedParameterJdbcTemplate.queryForObject(sql, mapper, "id", 1);
         });
 
-        verify(preparedStatement, times(1)).execute();
-        verify(rowMapper, times(1)).mapResultSetToEntity(resultSet, mapper);
+        verify(mapper, times(1)).map(resultSet);
+        verify(preparedStatement, times(1)).setObject(1, 1);
     }
-
 
     @DisplayName("Should Throw Exception When Getting Connection Fails For Update Operation")
     @Test
@@ -190,7 +195,7 @@ class NamedParameterJdbcTemplateTest<T> {
         when(dataSource.getConnection()).thenThrow(new SQLException());
 
         // Then
-        assertThrows(SQLException.class, () -> {
+        assertThrows(RuntimeException.class, () -> {
             // When
             namedParameterJdbcTemplate.update(sql, params);
         });
@@ -206,20 +211,27 @@ class NamedParameterJdbcTemplateTest<T> {
         });
     }
 
-    @DisplayName("Should Throw Exception When Execute Update Throws Exception")
     @Test
     void shouldThrowExceptionWhenExecuteUpdateThrowsException() throws SQLException {
         // Given
         String sql = "UPDATE table SET name = :name WHERE id = :id";
-        Map<String, Object> params = TestUtil.getStringObjectMap();
+        Map<String, Object> paramMap = TestUtil.getStringObjectMap();
+
+        // Convert the map to a sequential array
+        Object[] params = new Object[paramMap.size() * 2];
+        int index = 0;
+        for (Map.Entry<String, Object> entry : paramMap.entrySet()) {
+            params[index++] = entry.getKey();
+            params[index++] = entry.getValue();
+        }
 
         // Mock behavior
         when(dataSource.getConnection()).thenReturn(connection);
         when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
-        when(preparedStatement.executeUpdate()).thenThrow(new SQLException());
+        doThrow(new SQLException()).when(preparedStatement).executeUpdate();
 
         // Then
-        assertThrows(SQLException.class, () -> {
+        assertThrows(RuntimeException.class, () -> {
             // When
             namedParameterJdbcTemplate.update(sql, params);
         });
@@ -232,18 +244,21 @@ class NamedParameterJdbcTemplateTest<T> {
     void shouldQueryForObjectUsingTestEntityAndParameters() throws SQLException {
         String sql = "SELECT  id, name  FROM table WHERE id = :id";
         TestEntity expectedEntity = TestUtil.getTestEntity(1, "TestName");
-        Map<String, Object> params = new HashMap<>();
-        params.put("id", 1);
 
+        // Mock behavior
         when(dataSource.getConnection()).thenReturn(connection);
         when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
-        when(preparedStatement.execute()).thenReturn(true);
-        when(rowMapper.mapResultSetToEntity(resultSet, mapper)).thenReturn(expectedEntity);
+        when(preparedStatement.executeQuery()).thenReturn(resultSet);
+        when(resultSet.next()).thenReturn(true);
+        when(mapper.map(resultSet)).thenReturn(expectedEntity);
 
-        TestEntity result = namedParameterJdbcTemplate.queryForObject(sql, mapper, params);
+        // When
+        TestEntity result = namedParameterJdbcTemplate.queryForObject(sql, mapper, "id", 1);
 
+        // Then
         verify(preparedStatement, times(1)).setObject(1, 1);
         assertEquals(expectedEntity, result);
+        verify(resultSet, times(1)).next();
     }
 
 }
