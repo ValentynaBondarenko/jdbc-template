@@ -1,6 +1,10 @@
 package com.bondarenko.exception;
 
-import java.sql.SQLException;
+public class DataAccessException extends RuntimeException {
+    public DataAccessException(Exception exception) {
+        super(exception);
+    }
 
-public class DataAccessException extends SQLException {
+    public DataAccessException(String message, Exception exception) {
+    }
 }

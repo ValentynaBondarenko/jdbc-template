@@ -2,6 +2,9 @@ package com.bondarenko;
 
 import org.h2.jdbcx.JdbcDataSource;
 
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.HashMap;
@@ -36,4 +39,24 @@ public class TestUtil {
         h2DataSource.setPassword("sa");
         return h2DataSource;
     }
+
+    public static void createTestTable(DataSource dataSource) throws SQLException {
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(
+                     "CREATE TABLE test_table (id INT PRIMARY KEY, name VARCHAR(255));" +
+                             "INSERT INTO test_table (id, name) VALUES (1, 'Entity1');" +
+                             "INSERT INTO test_table (id, name) VALUES (2, 'Entity2');"
+             )) {
+            statement.execute();
+        }
+    }
+
+    public static void dropTestTable(DataSource dataSource) throws SQLException {
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement("DROP TABLE test_table;")) {
+            statement.execute();
+        }
+    }
+
+
 }

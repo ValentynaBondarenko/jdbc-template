@@ -2,6 +2,7 @@ package com.bondarenko.mapper;
 
 import com.bondarenko.TestEntity;
 import com.bondarenko.TestUtil;
+import com.bondarenko.exception.DataAccessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -31,7 +32,7 @@ class ResultSetMapperTest {
 
     @BeforeEach
     void setUp() {
-        resultSetMapper = new ResultSetMapper();
+        resultSetMapper = new ResultSetMapper<>();
     }
 
     @DisplayName("Should successfully map a ResultSet to an Entity")
@@ -65,7 +66,7 @@ class ResultSetMapperTest {
         when(resultSet.next()).thenReturn(true);
         when(rowMapper.map(resultSet)).thenThrow(new SQLException());
 
-        assertThrows(RuntimeException.class, () -> {
+        assertThrows(DataAccessException.class, () -> {
             resultSetMapper.mapResultSetToEntity(resultSet, rowMapper);
         });
     }

@@ -3,12 +3,12 @@ package com.bondarenko.template;
 
 import com.bondarenko.TestEntity;
 import com.bondarenko.TestUtil;
-import com.bondarenko.mapper.ResultSetMapper;
 import com.bondarenko.mapper.RowMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -21,7 +21,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -31,8 +31,7 @@ class JdbcTemplateTest<T> {
     private DataSource dataSource;
     @Mock
     private RowMapper<TestEntity> rowMapper;
-    @Mock
-    private ResultSetMapper resultSetMapper;
+
     @Mock
     private ResultSet resultSet;
 
@@ -78,7 +77,7 @@ class JdbcTemplateTest<T> {
 
         List<TestEntity> result = jdbcTemplate.query("SELECT id, name FROM table WHERE id = ?", rowMapper);
 
-        assertTrue(result.isEmpty());
+        assertTrue(result.isEmpty(), "Result should be empty");
     }
 
     @DisplayName("Should Map To TestEntity")
@@ -122,7 +121,7 @@ class JdbcTemplateTest<T> {
         List<TestEntity> result = jdbcTemplate.query("SELECT id, name FROM table WHERE id = ?", rowMapper);
 
         assertNotNull(result);
-        assertTrue(result.isEmpty());
+        assertTrue(result.isEmpty(), "Result should be empty");
     }
 
     @DisplayName("Should Set PreparedStatement Parameters For Query For Object")
@@ -131,11 +130,11 @@ class JdbcTemplateTest<T> {
         when(dataSource.getConnection()).thenReturn(connection);
         when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
         when(preparedStatement.executeQuery()).thenReturn(resultSet);
-       // when(resultSetMapper.mapResultSetToEntity(resultSet, rowMapper)).thenReturn(new TestEntity());
 
         jdbcTemplate.queryForObject("SELECT id, name FROM table WHERE id = ?", rowMapper, 1);
 
-        verify(preparedStatement).setObject(1, 1);
+        InOrder inOrder = inOrder(preparedStatement);
+        inOrder.verify(preparedStatement).setObject(1, 1);
     }
 
     @DisplayName("Should Throw SQLException When QueryForObject Encounters a SQLException")
@@ -179,7 +178,8 @@ class JdbcTemplateTest<T> {
 
         jdbcTemplate.update("UPDATE table SET name = ? WHERE id = ?", "NewName", 1);
 
-        verify(preparedStatement).setObject(1, "NewName");
-        verify(preparedStatement).setObject(2, 1);
+        InOrder inOrder = inOrder(preparedStatement);
+        inOrder.verify(preparedStatement).setObject(1, "NewName");
+        inOrder.verify(preparedStatement).setObject(2, 1);
     }
 }

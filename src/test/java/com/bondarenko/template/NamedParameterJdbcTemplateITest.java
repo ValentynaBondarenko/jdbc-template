@@ -9,44 +9,26 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.sql.DataSource;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 public class NamedParameterJdbcTemplateITest {
     private DataSource dataSource = TestUtil.getJdbcDataSource();
-
-    private NamedParameterJdbcTemplate<TestEntity> namedParameterJdbcTemplate;
+    private NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 
     @BeforeEach
     public void setUp() throws SQLException {
-        namedParameterJdbcTemplate = new NamedParameterJdbcTemplate<>(dataSource);
-
-        try (Connection connection = dataSource.getConnection()) {
-            try (PreparedStatement statement = connection.prepareStatement(
-                    "CREATE TABLE IF NOT EXISTS test_table (id INT PRIMARY KEY, name VARCHAR(255));")) {
-                statement.execute();
-            }
-
-            try (PreparedStatement statement = connection.prepareStatement(
-                    "INSERT INTO test_table (id, name) VALUES (?, ?);")) {
-                statement.setInt(1, 1);
-                statement.setString(2, "Entity1");
-                statement.execute();
-
-                statement.setInt(1, 2);
-                statement.setString(2, "Entity2");
-                statement.execute();
-            }
-        }
+        namedParameterJdbcTemplate = new NamedParameterJdbcTemplate(dataSource);
+        TestUtil.createTestTable(dataSource);
     }
 
-    @DisplayName("Should return correct entities in query")
     @Test
+    @DisplayName("Should return correct entities in query")
     public void query_ShouldReturnCorrectEntities() {
         RowMapper<TestEntity> rowMapper = TestUtil::getTestEntityByResultSet;
         List<TestEntity> entities = namedParameterJdbcTemplate.query("SELECT id, name FROM test_table", rowMapper);
@@ -59,14 +41,17 @@ public class NamedParameterJdbcTemplateITest {
         assertEquals("Entity2", entities.get(1).getName());
     }
 
-    @DisplayName("Should return correct entities in queryForObject")
     @Test
+    @DisplayName("Should return correct entities in queryForObject")
     public void queryForObject_ShouldReturnCorrectEntity() {
         RowMapper<TestEntity> rowMapper = TestUtil::getTestEntityByResultSet;
+        Map<String, Object> paramMap = new HashMap<>();
+        paramMap.put("id", 1);
+
         TestEntity entity = namedParameterJdbcTemplate.queryForObject(
                 "SELECT id, name FROM test_table WHERE id = :id",
-                rowMapper,
-                "id", 1
+                paramMap,
+                rowMapper
         );
 
         assertNotNull(entity);
@@ -74,35 +59,37 @@ public class NamedParameterJdbcTemplateITest {
         assertEquals("Entity1", entity.getName());
     }
 
-    @DisplayName("Should update entity")
     @Test
+    @DisplayName("Should update entity")
     public void update_ShouldUpdateEntity() {
+        Map<String, Object> paramMap = new HashMap<>();
+        paramMap.put("name", "UpdatedEntity");
+        paramMap.put("id", 1);
+
         int updatedRows = namedParameterJdbcTemplate.update(
                 "UPDATE test_table SET name = :name WHERE id = :id",
-                "name", "UpdatedEntity",
-                "id", 1
+                paramMap
         );
 
         assertEquals(1, updatedRows);
 
         RowMapper<TestEntity> rowMapper = TestUtil::getTestEntityByResultSet;
+        Map<String, Object> selectParamMap = new HashMap<>();
+        selectParamMap.put("id", 1);
+
         TestEntity updatedEntity = namedParameterJdbcTemplate.queryForObject(
                 "SELECT id, name FROM test_table WHERE id = :id",
-                rowMapper,
-                "id", 1
+                selectParamMap,
+                rowMapper
         );
 
         assertNotNull(updatedEntity);
         assertEquals("UpdatedEntity", updatedEntity.getName());
     }
 
-
     @AfterEach
-    public void down() throws SQLException {
-        try (Connection connection = dataSource.getConnection();
-             PreparedStatement statement = connection.prepareStatement(
-                     "DROP TABLE test_table;")) {
-            statement.execute();
-        }
+    public void tearDown() throws SQLException {
+        TestUtil.dropTestTable(dataSource);
     }
+
 }
